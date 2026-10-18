@@ -1,120 +1,157 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme="day">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffc4d6">
+<meta name="description" content="Our Cats — เกมรับขนมให้แมวสามตัวที่บ้าน">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Our Cats">
-<title>Cat Treat Catch 🐱</title>
+<title>Our Cats · Cat Treat Catch</title>
 <link rel="apple-touch-icon" href="img/app-icon.png">
 <link rel="icon" href="img/app-icon.png">
+<link rel="preload" href="fonts/LilitaOne-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Mali-700-thai.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/screens.css">
 </head>
 <body>
 <div id="app">
+  <canvas id="scene" aria-hidden="true"></canvas>
 
-  <!-- Global controls: sound + day/night toggle, visible on every screen -->
-  <div id="globalControls">
-    <div class="icon-btn" id="soundToggle">🔊</div>
-    <div class="icon-btn" id="themeToggle">☀️</div>
+  <!-- In-game HUD -->
+  <header id="hud" class="hidden">
+    <div class="pill pill-score">
+      <span class="badge"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#paw"/></svg></span>
+      <span class="num" id="scoreLabel">0</span>
+    </div>
+    <div class="pill pill-best">
+      <span class="badge"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#crown"/></svg></span>
+      <span class="num" id="bestLabel">0</span>
+    </div>
+  </header>
+
+  <div id="power" class="hidden" aria-hidden="true">
+    <span class="badge"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#magnet"/></svg></span>
+    <div class="meter"><i id="powerMeter"></i></div>
   </div>
 
-  <!-- Confetti layer -->
-  <div id="confettiLayer" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:20;"></div>
+  <div id="combo" aria-hidden="true">
+    <span class="combo-x" id="comboX">x2</span>
+    <span class="combo-tag">COMBO!</span>
+    <div class="meter"><i id="comboMeter"></i></div>
+  </div>
 
-  <!-- Cat trivia modal -->
-  <div class="modal-backdrop hidden" id="triviaModal">
-    <div class="modal-card">
-      <img id="triviaImg" src="" alt="">
+  <div id="countdown" aria-live="assertive"></div>
+
+  <div id="hint" class="hidden">
+    <svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#paw"/></svg>
+    <span>ลากนิ้วซ้าย-ขวาเพื่อขยับแมว</span>
+  </div>
+
+  <div id="controls">
+    <button class="icon-btn hidden" id="pauseBtn" aria-label="พักเกม"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#pause"/></svg></button>
+    <button class="icon-btn" id="soundBtn" aria-label="เปิด/ปิดเสียง"></button>
+    <button class="icon-btn" id="themeBtn" aria-label="สลับกลางวัน/กลางคืน"></button>
+  </div>
+
+  <main>
+    <!-- Cover -->
+    <section class="screen" id="screen-intro" aria-label="หน้าแรก">
+      <div class="logo pop-in">
+        <h1 class="logo-words" aria-label="Our Cats">
+          <span class="logo-word" data-text="OUR">OUR</span>
+          <span class="logo-word" data-text="CATS">CATS</span>
+        </h1>
+        <img class="logo-cake" src="img/ui/cake.svg" alt="">
+        <i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i>
+      </div>
+      <div class="trio pop-in" id="trio" style="--d:.12s"></div>
+      <p class="ribbon pop-in" style="--d:.24s">ถ้าคิดถึงแมว ให้เล่นเกมนี้นะ!</p>
+      <button class="btn btn-primary btn-xl breathe" id="toSelectBtn" style="--d:.34s">เริ่มเลย!</button>
+      <p class="made pop-in" style="--d:.44s">made with <svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#heart"/></svg></p>
+    </section>
+
+    <!-- Cat select -->
+    <section class="screen hidden" id="screen-select" aria-label="เลือกแมว">
+      <div class="panel pop-in">
+        <span class="ribbon tab">เลือกแมวตัวโปรด</span>
+        <p class="hint-line">แตะเพื่อเลือก · กด <svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#info"/></svg> ดูนิสัย</p>
+        <div class="cat-grid" id="catGrid" role="radiogroup" aria-label="เลือกแมว"></div>
+        <button class="btn btn-primary btn-xl" id="startBtn">พร้อมเล่น!</button>
+        <button class="btn btn-sm" id="backBtn">ย้อนกลับ</button>
+      </div>
+    </section>
+
+    <!-- Game over -->
+    <section class="screen hidden" id="screen-over" aria-label="สรุปคะแนน">
+      <div class="panel over-panel pop-in">
+        <span class="ribbon tab">จบเกมแล้ว!</span>
+        <div class="paws" id="paws"></div>
+        <div class="score-big" id="finalScore">0</div>
+        <div class="score-cap">คะแนน</div>
+        <div class="best-line" id="bestLine"></div>
+        <div class="newbest hidden" id="newBest">NEW BEST!</div>
+        <div class="speech hidden" id="speech">
+          <img id="speechCat" src="" alt="">
+          <div class="bubble" id="speechText"></div>
+        </div>
+        <button class="btn btn-primary btn-xl" id="retryBtn"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#replay"/></svg>เล่นอีกครั้ง</button>
+        <div class="row">
+          <button class="btn btn-sm" id="swapBtn"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#swap"/></svg>เปลี่ยนแมว</button>
+          <button class="btn btn-sm" id="boardBtn"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#trophy"/></svg>Top 5</button>
+          <button class="btn btn-sm" id="shareBtn"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#share"/></svg>แชร์</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modals -->
+  <div class="modal hidden" id="pauseModal" role="dialog" aria-label="พักเกม">
+    <div class="panel">
+      <span class="ribbon tab">พักก่อนนะ</span>
+      <div class="pause-actions">
+        <button class="btn btn-primary btn-xl" id="resumeBtn"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#play"/></svg>เล่นต่อ</button>
+        <button class="btn" id="quitBtn"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#home"/></svg>กลับหน้าแรก</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="triviaModal" role="dialog" aria-label="นิสัยแมว">
+    <div class="panel">
+      <button class="icon-btn modal-close" id="triviaClose" aria-label="ปิด"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#close"/></svg></button>
+      <img class="trivia-cat" id="triviaImg" src="" alt="">
       <h2 id="triviaName"></h2>
       <div class="trivia-cols">
-        <div class="trivia-col good">
-          <h3>✅ ข้อดี</h3>
-          <ul id="triviaGood"></ul>
-        </div>
-        <div class="trivia-col bad">
-          <h3>⚠️ ข้อเสีย</h3>
-          <ul id="triviaBad"></ul>
-        </div>
-      </div>
-      <button class="primary" id="triviaCloseBtn">ปิด</button>
-    </div>
-  </div>
-
-  <!-- Leaderboard modal -->
-  <div class="modal-backdrop hidden" id="leaderboardModal">
-    <div class="modal-card">
-      <h2>🏆 TOP 5 คะแนน</h2>
-      <ul class="leaderboard-list" id="leaderboardList"></ul>
-      <button class="primary" id="leaderboardCloseBtn">ปิด</button>
-    </div>
-  </div>
-
-  <!-- INTRO SCREEN -->
-  <div class="screen" id="introScreen">
-    <div class="card">
-      <div class="badge-ring">
-        <div class="badge-sticker">🎂</div>
-        <svg class="badge-svg" viewBox="0 0 300 300">
-          <circle cx="150" cy="150" r="136" fill="none" stroke="var(--gold)" stroke-width="3" stroke-dasharray="7 7"/>
-          <path id="badgeArcTop" d="M 18 168 A 155 155 0 0 1 282 168" fill="none"/>
-          <path id="badgeArcBottom" d="M 60 190 A 96 96 0 0 0 240 190" fill="none"/>
-          <text class="badge-text-top"><textPath href="#badgeArcTop" startOffset="50%" text-anchor="middle">OUR CATS</textPath></text>
-          <text class="badge-text-bottom"><textPath href="#badgeArcBottom" startOffset="50%" text-anchor="middle">CROOKSHANKS • GINNY • LUMOS</textPath></text>
-        </svg>
-        <div class="badge-stars">
-          <span>⭐</span><span>⭐</span>
-        </div>
-        <div class="badge-cats" id="badgeCats"></div>
-      </div>
-      <div class="subtitle">ถ้าคิดถึงแมว ให้เล่นเกมนี้นะ! 🐾💕</div>
-      <button class="primary" id="toSelectBtn">เริ่มเลย!</button>
-    </div>
-    <footer class="note">made with love 🩷</footer>
-  </div>
-
-  <!-- CAT SELECT SCREEN -->
-  <div class="screen hidden" id="selectScreen">
-    <div class="card">
-      <h1 class="title" style="font-size:22px;">เลือกแมวตัวโปรด</h1>
-      <div class="subtitle" style="margin-bottom:6px;">แมวทั้ง 3 ตัวในห้องรออยู่นะ 🐈</div>
-      <div class="cat-select" id="catSelect"></div>
-      <button class="primary" id="startGameBtn">พร้อมเล่น!</button>
-      <div><button class="secondary" id="backToIntroBtn">ย้อนกลับ</button></div>
-    </div>
-  </div>
-
-  <!-- GAME SCREEN -->
-  <div class="screen hidden" id="gameScreen" style="padding:0;">
-    <div id="hud">
-      <div class="pill">คะแนน: <span id="scoreLabel">0</span></div>
-      <div class="pill">สูงสุด: <span id="bestLabel">0</span></div>
-    </div>
-    <div class="combo-pill" id="comboPill">🔥 COMBO x2</div>
-    <div class="magnet-glow" id="magnetGlow"></div>
-    <canvas id="gameCanvas"></canvas>
-  </div>
-
-  <!-- GAME OVER SCREEN -->
-  <div class="screen hidden" id="overScreen">
-    <div class="card">
-      <h1 class="title" style="font-size:24px;">แมวอิ่มแล้ว! 🐾</h1>
-      <div class="subtitle" id="overMsg">คะแนนของคุณ</div>
-      <div style="font-family:'Fredoka',sans-serif; font-size:40px; font-weight:700; color:var(--accent); margin:6px 0 4px;" id="finalScore">0</div>
-      <div style="font-size:13px; opacity:.7; margin-bottom:16px; font-weight:700;" id="bestMsg"></div>
-      <button class="primary" id="retryBtn">เล่นอีกครั้ง</button>
-      <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
-        <button class="secondary" id="changeCatBtn">เปลี่ยนแมว</button>
-        <button class="secondary" id="leaderboardBtn">🏆 Top 5</button>
-        <button class="secondary" id="shareBtn">📤 แชร์</button>
+        <div class="trivia-col good"><h3><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#heart"/></svg>ข้อดี</h3><ul id="triviaGood"></ul></div>
+        <div class="trivia-col bad"><h3><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#alert"/></svg>ข้อเสีย</h3><ul id="triviaBad"></ul></div>
       </div>
     </div>
   </div>
 
+  <div class="modal hidden" id="boardModal" role="dialog" aria-label="อันดับคะแนน">
+    <div class="panel">
+      <button class="icon-btn modal-close" id="boardClose" aria-label="ปิด"><svg class="ic" aria-hidden="true"><use href="img/ui/icons.svg#close"/></svg></button>
+      <h2>TOP 5</h2>
+      <ol class="lb-list" id="boardList"></ol>
+    </div>
+  </div>
+
+  <div id="toast" class="hidden" role="status"></div>
+  <div id="wipe" class="hidden" aria-hidden="true"></div>
+
+  <div id="boot">
+    <img src="img/ui/paw.svg" alt="" style="filter:drop-shadow(0 3px 0 #4a2c3a)">
+    <p>กำลังโหลด…</p>
+  </div>
 </div>
 
-<script src="js/game.js" defer></script>
+<noscript><p style="position:fixed;inset:0;display:grid;place-items:center;margin:0;background:#ffc4d6;font:600 18px sans-serif;color:#4a2c3a">เกมนี้ต้องเปิด JavaScript ก่อนนะ</p></noscript>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

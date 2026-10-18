@@ -1,0 +1,61 @@
+/* Design tokens — single source of truth for colour, type, spacing and motion.
+   Brand ink (--ink) never changes between themes; surfaces/lines/text do. */
+:root {
+  --ink: #4a2c3a;
+  --cream: #fff4e3;
+  --paper: #fffaf0;
+
+  --pink: #ff6b8b;
+  --pink-dark: #d94b6e;
+  --pink-soft: #ffc4d6;
+  --butter: #ffd36e;
+  --butter-dark: #e8b043;
+  --mint: #8fd8b5;
+  --mint-dark: #3f9e76;
+  --sky: #8ed1f0;
+  --lav: #b9a3f5;
+  --danger: #ff5a6e;
+
+  /* Theme-dependent (day defaults) */
+  --surface: var(--paper);
+  --surface-2: #ffeede;
+  --text: var(--ink);
+  --text-soft: #8a6577;
+  --line: var(--ink);
+  --stitch: rgba(74, 44, 58, 0.28);
+  --wipe: var(--pink);
+
+  --bw: 3px;
+  --r-lg: 26px;
+  --r-md: 18px;
+
+  --font-display: 'Lilita One', 'Mali', ui-rounded, system-ui, sans-serif;
+  --font-body: 'Mali', ui-rounded, system-ui, -apple-system, sans-serif;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Sticker-style outlined lettering (works everywhere, unlike text-stroke) */
+  --stroke-text:
+    3px 0 0 var(--ink), -3px 0 0 var(--ink), 0 3px 0 var(--ink), 0 -3px 0 var(--ink),
+    2px 2px 0 var(--ink), -2px 2px 0 var(--ink), 2px -2px 0 var(--ink), -2px -2px 0 var(--ink),
+    0 5px 0 var(--ink);
+  --stroke-text-lg:
+    5px 0 0 var(--ink), -5px 0 0 var(--ink), 0 5px 0 var(--ink), 0 -5px 0 var(--ink),
+    4px 3px 0 var(--ink), -4px 3px 0 var(--ink), 4px -3px 0 var(--ink), -4px -3px 0 var(--ink),
+    3px 4px 0 var(--ink), -3px 4px 0 var(--ink), 3px -4px 0 var(--ink), -3px -4px 0 var(--ink),
+    0 9px 0 var(--ink), 4px 9px 0 var(--ink), -4px 9px 0 var(--ink);
+}
+
+:root[data-theme='night'] {
+  --surface: #3a3070;
+  --surface-2: #463b86;
+  --text: #fff4e3;
+  --text-soft: #c9bfee;
+  --line: #140f30;
+  --stitch: rgba(255, 244, 227, 0.3);
+  --wipe: #5a3fb0;
+}
