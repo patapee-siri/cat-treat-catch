@@ -230,6 +230,23 @@
   box-shadow: 0 3px 0 var(--line);
   transform: rotate(-3deg);
 }
+/* FEVER: banner shakes and the tag cycles through the brand colours */
+#app.fever #combo .combo-x { color: #fff; animation: feverShake 0.22s linear infinite; }
+#app.fever #combo .combo-tag { color: var(--ink); animation: tagCycle 0.9s steps(1) infinite; }
+#app.fever #combo .meter > i { background: var(--butter); }
+#app.fever .pill-score { animation: feverPulse 0.45s ease-in-out infinite; }
+@keyframes feverShake {
+  0%, 100% { transform: translate(0, 0) rotate(-1.5deg); }
+  25% { transform: translate(2px, -2px) rotate(1.5deg); }
+  50% { transform: translate(-2px, 1px) rotate(-1deg); }
+  75% { transform: translate(1px, 2px) rotate(2deg); }
+}
+@keyframes tagCycle {
+  0% { background: #ff6b8b; }
+  33% { background: #ffd36e; }
+  66% { background: #8fd8b5; }
+}
+@keyframes feverPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 @keyframes comboPop {
   0% { transform: scale(0.4) rotate(-14deg); }
   60% { transform: scale(1.22) rotate(4deg); }

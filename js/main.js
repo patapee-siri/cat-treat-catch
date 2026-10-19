@@ -25,6 +25,7 @@ async function boot() {
 
   initUI();
   game.init(document.getElementById('scene'), gameEvents);
+  if (new URLSearchParams(location.search).has('debug')) window.__game = game;
 
   const boot = document.getElementById('boot');
   boot.classList.add('done');

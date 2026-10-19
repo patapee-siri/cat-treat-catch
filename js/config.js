@@ -40,7 +40,10 @@ export const ITEM_DEFS = {
 };
 
 export const TUNING = {
-  comboWindow: 1.2,        // seconds between catches to keep a combo alive
+  tiers: [5, 10, 20],      // streak needed for x2 / x3 / x4 score multiplier
+  feverAt: 10,             // streak that triggers FEVER
+  feverEvery: 15,          // extra streak needed to trigger FEVER again
+  feverDuration: 6,        // seconds
   magnetDuration: 4,       // seconds
   fallSpeed: [130, 190],   // px/s before the difficulty multiplier
   speedGain: 0.014,        // difficulty ramp per second

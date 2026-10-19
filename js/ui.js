@@ -13,7 +13,7 @@ const app = $('#app');
 const screens = { intro: $('#screen-intro'), select: $('#screen-select'), over: $('#screen-over') };
 const el = {
   hud: $('#hud'), score: $('#scoreLabel'), best: $('#bestLabel'),
-  combo: $('#combo'), comboX: $('#comboX'), comboMeter: $('#comboMeter'),
+  combo: $('#combo'), comboX: $('#comboX'), comboTag: $('#comboTag'), comboMeter: $('#comboMeter'),
   power: $('#power'), powerMeter: $('#powerMeter'),
   countdown: $('#countdown'), hint: $('#hint'),
   pauseBtn: $('#pauseBtn'), soundBtn: $('#soundBtn'), themeBtn: $('#themeBtn'),
@@ -23,6 +23,8 @@ const el = {
 let selectedCat = Math.min(store.cat, CATS.length - 1);
 let busy = false;
 let lastCombo = 0;
+let lastMult = 1;
+let fevering = false;
 let toastTimer = 0;
 
 /* ------------------------------------------------------------------ screens & transitions */
@@ -157,20 +159,37 @@ function setScore(score) {
   }
 }
 
-function setCombo({ combo }) {
-  const show = combo >= 2;
+function renderCombo() {
+  const show = lastCombo >= 3 || fevering;
   el.combo.classList.toggle('on', show);
-  if (show && combo !== lastCombo) {
-    el.comboX.textContent = `x${combo}`;
+  if (!show) return;
+  el.comboX.textContent = String(lastCombo);
+  el.comboTag.textContent = fevering ? 'FEVER x2!' : lastMult > 1 ? `COMBO x${lastMult}` : 'COMBO!';
+}
+
+function setCombo({ combo, mult = 1 }) {
+  const changed = combo !== lastCombo;
+  lastCombo = combo;
+  lastMult = mult;
+  renderCombo();
+  if (changed && combo >= 3) {
     el.comboX.classList.remove('pop');
     void el.comboX.offsetWidth;
     el.comboX.classList.add('pop');
   }
-  lastCombo = combo;
 }
 
-function onFrame({ comboFrac, magnetFrac }) {
-  if (lastCombo >= 2) el.comboMeter.style.transform = `scaleX(${Math.max(0, comboFrac).toFixed(3)})`;
+function setFever(on) {
+  fevering = on;
+  app.classList.toggle('fever', on);
+  renderCombo();
+}
+
+function onFrame({ tierFrac, feverFrac, magnetFrac }) {
+  if (el.combo.classList.contains('on')) {
+    const f = fevering ? feverFrac : tierFrac;
+    el.comboMeter.style.transform = `scaleX(${Math.max(0, f).toFixed(3)})`;
+  }
   const power = magnetFrac > 0;
   el.power.classList.toggle('hidden', !power);
   if (power) el.powerMeter.style.transform = `scaleX(${magnetFrac.toFixed(3)})`;
@@ -205,6 +224,8 @@ function enterGameChrome() {
   el.combo.classList.remove('on');
   el.power.classList.add('hidden');
   lastCombo = 0;
+  lastMult = 1;
+  setFever(false);
 }
 
 function leaveGameChrome() {
@@ -214,6 +235,7 @@ function leaveGameChrome() {
   el.combo.classList.remove('on');
   el.power.classList.add('hidden');
   el.countdown.innerHTML = '';
+  setFever(false);
   hideHint();
 }
 
@@ -409,6 +431,7 @@ export function initUI() {
 export const gameEvents = {
   onScore: setScore,
   onCombo: setCombo,
+  onFever: setFever,
   onFrame,
   onReadyTick,
   onGameOver,

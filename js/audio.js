@@ -72,13 +72,31 @@ export const sfx = {
   tick() { tone({ f: 880, d: 0.04, type: 'square', g: 0.04 }); },
 
   /** Each consecutive catch climbs a pentatonic scale, so combos sound musical. */
-  catch(combo = 1) {
+  catch(combo = 1, fever = false) {
     const i = Math.max(0, combo - 1);
-    const note = 72 + PENTATONIC[i % 5] + 12 * Math.min(Math.floor(i / 5), 2);
+    const note = 72 + PENTATONIC[i % 5] + 12 * Math.min(Math.floor(i / 5), 2) + (fever ? 12 : 0);
     const f = midi(note);
     tone({ f, d: 0.16, g: 0.2 });
     tone({ f: f * 2, d: 0.1, type: 'triangle', g: 0.07, at: 0.02 });
     tone({ f: f * 3, d: 0.06, g: 0.03, at: 0.04 });
+    if (fever) tone({ f: f * 1.5, d: 0.12, type: 'square', g: 0.04, at: 0.03 });
+  },
+
+  /** Streak broke: a short sagging blip. */
+  miss() {
+    tone({ f: 330, f2: 170, d: 0.22, type: 'triangle', g: 0.16 });
+  },
+
+  /** Multiplier went up: quick rising triad. */
+  tier() {
+    [0, 4, 7].forEach((s, i) => tone({ f: midi(79 + s), d: 0.12, type: 'triangle', g: 0.15, at: i * 0.05 }));
+  },
+
+  /** FEVER start: rising sweep + chord stab. */
+  fever() {
+    tone({ f: 200, f2: 1400, d: 0.45, type: 'sawtooth', g: 0.08 });
+    [0, 4, 7, 12].forEach((s) => tone({ f: midi(72 + s), d: 0.5, type: 'square', g: 0.07, at: 0.3 }));
+    tone({ f: midi(84), d: 0.6, type: 'triangle', g: 0.14, at: 0.3 });
   },
 
   bad() {

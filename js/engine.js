@@ -20,7 +20,7 @@ const g = {
   state: 'menu', prev: 'menu', t: 0,
   cat: 0, player: null,
   items: [], fx: [], pops: [],
-  score: 0, combo: 0, comboT: 0, maxCombo: 0, magnetT: 0,
+  score: 0, combo: 0, maxCombo: 0, magnetT: 0, feverT: 0, nextFever: 10, queue: [],
   speed: 1, spawnT: 0, sincePower: 0,
   shake: 0, flash: 0, hitStop: 0, timeScale: 1,
   readyT: 0, readyIdx: -1, dyingT: 0,
@@ -88,11 +88,12 @@ function startRun(catIdx) {
   g.fx.length = 0;
   g.pops.length = 0;
   Object.assign(g, {
-    score: 0, combo: 0, comboT: 0, maxCombo: 0, magnetT: 0, speed: 1, spawnT: 0.2, sincePower: 0,
+    score: 0, combo: 0, maxCombo: 0, magnetT: 0, feverT: 0, nextFever: TUNING.feverAt, queue: [], speed: 1, spawnT: 0.2, sincePower: 0,
     shake: 0, flash: 0, hitStop: 0, timeScale: 1, readyT: 0, readyIdx: -1, dyingT: 0, moved: false,
     state: 'ready',
   });
   makePlayer();
+  scene.setFever(false);
   ev.onScore?.(0);
   ev.onCombo?.({ combo: 0 });
 }
@@ -114,45 +115,145 @@ function pickWeighted(keys) {
   return keys[0];
 }
 
-function spawnItem() {
-  const power = g.score >= 3 && g.magnetT <= 0 && g.sincePower > 14 && Math.random() < 0.08;
-  const badChance = 0.2 + Math.min(g.score * 0.002, 0.1);
-  let type;
-  if (power) { type = 'magnet'; g.sincePower = 0; }
-  else if (Math.random() < badChance) type = pickWeighted(BAD);
-  else type = pickWeighted(GOOD);
+const tierOf = (combo) => TUNING.tiers.filter((t) => combo >= t).length + 1;
 
-  const size = clamp(g.player.h * 0.5, 36, 64) * rand(0.95, 1.1);
+/** Progress (0..1) toward the next multiplier tier. */
+function tierFrac(combo) {
+  const t = TUNING.tiers;
+  const k = tierOf(combo) - 1;
+  if (k >= t.length) return 1;
+  const lo = k === 0 ? 0 : t[k - 1];
+  return (combo - lo) / (t[k] - lo);
+}
+
+function makeItem(type, x, vy, extra = {}) {
+  const size = clamp(g.player.h * 0.5, 36, 64) * rand(0.97, 1.06);
   g.items.push({
     type, kind: ITEM_DEFS[type].kind,
-    x: rand(size * 0.6, W - size * 0.6), y: -size,
-    vx: rand(-14, 14), vy: rand(TUNING.fallSpeed[0], TUNING.fallSpeed[1]) * g.speed,
-    size, phase: rand(0, 6.28), tilt: rand(-0.2, 0.2),
-    age: 0, state: 'fall', alpha: 1, landT: 0, trail: 0,
+    x: clamp(x, size * 0.6, W - size * 0.6), y: -size,
+    vx: 0, vy, size, phase: rand(0, 6.28), tilt: rand(-0.2, 0.2),
+    age: 0, state: 'fall', alpha: 1, landT: 0, trail: 0, gold: false, ...extra,
   });
+}
+
+function pickType() {
+  if (g.magnetT <= 0 && g.score >= 3 && g.sincePower > 14 && Math.random() < 0.08) { g.sincePower = 0; return 'magnet'; }
+  const badChance = g.feverT > 0 ? 0 : 0.2 + Math.min(g.score * 0.002, 0.1);
+  return Math.random() < badChance ? pickWeighted(BAD) : pickWeighted(GOOD);
+}
+
+/** One random item (the old, unpredictable feel between patterns). */
+function spawnSingle() {
+  const type = pickType();
+  const vx = ITEM_DEFS[type].kind === 'bad' ? rand(-14, 14) : 0;
+  makeItem(type, rand(0, W), rand(TUNING.fallSpeed[0], TUNING.fallSpeed[1]) * g.speed, { vx });
+}
+
+/** A scheduled trail of treats you can sweep through in one smooth motion. Returns its duration. */
+function spawnPattern() {
+  const vy = 165 * g.speed;
+  const type = pickWeighted(GOOD);
+  const step = 0.3 / Math.max(1, g.speed * 0.85);
+  const shape = ['diagonal', 'zigzag', 'wave', 'column'][Math.floor(Math.random() * 4)];
+  const n = shape === 'column' ? 3 : shape === 'diagonal' ? 5 : 6;
+  const gap = shape === 'column' ? 0.2 : step;
+  const margin = Math.min(W * 0.18, 80);
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  const amp = Math.min(W * 0.3, 120);
+  const x0 = shape === 'diagonal' ? (dir > 0 ? margin : W - margin) : rand(margin + amp, Math.max(margin + amp, W - margin - amp));
+  for (let i = 0; i < n; i++) {
+    let x = x0;
+    if (shape === 'diagonal') x = x0 + dir * i * ((W - margin * 2) / (n - 1));
+    else if (shape === 'zigzag') x = x0 + (i % 2 ? amp : -amp);
+    else if (shape === 'wave') x = x0 + Math.sin(i * 1.05) * amp;
+    g.queue.push({ t: i * gap, type, x, vy });
+  }
+  return n * gap;
+}
+
+function scheduleNext(extra = 0) {
+  const base = Math.max(0.38, 0.95 - g.speed * 0.06) * (g.feverT > 0 ? 0.6 : 1);
+  g.spawnT = base + extra;
+}
+
+function runSpawner(dt) {
+  if (g.queue.length) {
+    for (const q of g.queue) q.t -= dt;
+    while (g.queue.length && g.queue[0].t <= 0) {
+      const q = g.queue.shift();
+      makeItem(q.type, q.x, q.vy);
+    }
+    return;
+  }
+  g.spawnT -= dt;
+  if (g.spawnT > 0) return;
+  const patternChance = g.feverT > 0 ? 0.7 : g.score >= 4 ? 0.4 : 0;
+  if (Math.random() < patternChance) { spawnPattern(); scheduleNext(0.15); }
+  else { spawnSingle(); scheduleNext(); }
+}
+
+function startFever() {
+  const p = g.player;
+  g.feverT = TUNING.feverDuration;
+  g.nextFever = g.combo + TUNING.feverEvery;
+  scene.setFever(true);
+  sfx.fever();
+  haptic([20, 30, 20, 30, 40]);
+  g.flash = 0.6;
+  g.shake = Math.max(g.shake, reduceMotion ? 0 : 9);
+  for (const it of g.items) {
+    if (it.kind === 'bad') { it.kind = 'good'; it.type = 'cookie'; it.gold = true; it.vx = 0; }
+  }
+  addPop('FEVER!', W / 2, H * 0.34, { color: '#ffd36e', size: 64, life: 1.4 });
+  burst(p.x, p.baseY - p.h * 0.5, { n: 16, colors: ['#ffd36e', '#ff6b8b', '#8fd8b5', '#8ed1f0', '#ffffff'], size: [9, 16], speed: [200, 460] });
+  addFx({ type: 'ring', x: p.x, y: p.baseY, size: p.w * 2.4, life: 0.7, max: 0.7, color: '#ffd36e' });
+  ev.onFever?.(true);
+}
+
+function endFever() {
+  g.feverT = 0;
+  scene.setFever(false);
+  addPop('จบ FEVER', W / 2, H * 0.34, { color: '#ffffff', size: 34, life: 1 });
+  ev.onFever?.(false);
+}
+
+function breakCombo(it) {
+  if (g.feverT > 0 || g.combo === 0) return;
+  const lost = g.combo;
+  g.combo = 0;
+  g.nextFever = TUNING.feverAt;
+  if (lost >= 3) {
+    sfx.miss();
+    addPop(`คอมโบขาด! ${lost}`, clamp(it.x, 90, W - 90), it.y - 24, { color: '#d8cfe6', size: 26, life: 1.1 });
+  }
+  ev.onCombo?.({ combo: 0, broken: lost >= 3 });
 }
 
 function onCatch(it) {
   const p = g.player;
-  g.combo = g.comboT > 0 ? g.combo + 1 : 1;
-  g.comboT = TUNING.comboWindow;
+  const prevTier = tierOf(g.combo);
+  g.combo += 1;
   g.maxCombo = Math.max(g.maxCombo, g.combo);
-  const bonus = g.combo >= 3 ? Math.floor(g.combo / 3) : 0;
-  const gain = 1 + bonus;
+  const mult = tierOf(g.combo);
+  const fever = g.feverT > 0;
+  const gain = mult * (fever ? 2 : 1);
   g.score += gain;
 
   p.sqV = -7;
   if (p.hop === 0) p.hopV = -250;
-  sfx.catch(g.combo);
+  sfx.catch(g.combo, fever);
   haptic(8);
 
-  const color = g.combo >= 6 ? '#ff6b8b' : g.combo >= 3 ? '#ffd36e' : '#ffffff';
-  addPop(`+${gain}`, it.x, it.y - 10, { color, size: 30 + Math.min(g.combo, 8) * 2 });
-  burst(it.x, it.y, { n: 6 + Math.min(g.combo, 6) });
-  if (g.combo >= 2) addFx({ type: 'ring', x: p.x, y: p.baseY, size: p.w * 0.9, life: 0.4, max: 0.4, color: '#ffd36e' });
-  if (g.combo >= 3 && g.combo % 3 === 0) {
-    g.shake = Math.max(g.shake, reduceMotion ? 0 : 5);
-    burst(p.x, p.baseY - p.h * 0.4, { n: 6, type: 'heart', colors: ['#ff6b8b', '#ffc4d6'], size: [9, 15], speed: [90, 220] });
+  const color = fever ? '#ffd36e' : mult >= 3 ? '#ff6b8b' : mult === 2 ? '#ffd36e' : '#ffffff';
+  addPop(`+${gain}`, it.x, it.y - 10, { color, size: 30 + mult * 4 + (fever ? 6 : 0) });
+  burst(it.x, it.y, { n: 6 + mult * 2 + (fever ? 4 : 0) });
+  if (g.combo >= 2) addFx({ type: 'ring', x: p.x, y: p.baseY, size: p.w * (0.9 + mult * 0.1), life: 0.4, max: 0.4, color: '#ffd36e' });
+
+  if (mult > prevTier) {
+    sfx.tier();
+    g.shake = Math.max(g.shake, reduceMotion ? 0 : 7);
+    addPop(`x${mult}!`, p.x, p.baseY - p.h * 1.5, { color: '#ff6b8b', size: 52, life: 1 });
+    burst(p.x, p.baseY - p.h * 0.4, { n: 8, type: 'heart', colors: ['#ff6b8b', '#ffc4d6'], size: [10, 16], speed: [100, 240] });
   }
 
   if (it.type === 'magnet') {
@@ -161,8 +262,10 @@ function onCatch(it) {
     addPop('แม่เหล็ก!', p.x, p.baseY - p.h * 0.85, { color: '#ffd36e', size: 30, life: 1.1 });
     addFx({ type: 'ring', x: p.x, y: p.baseY, size: p.w * 1.6, life: 0.6, max: 0.6, color: '#ff5a6e' });
   }
+
   ev.onScore?.(g.score);
-  if (g.combo >= 2) ev.onCombo?.({ combo: g.combo, milestone: g.combo % 3 === 0 });
+  ev.onCombo?.({ combo: g.combo, mult, tierUp: mult > prevTier });
+  if (!fever && g.combo >= g.nextFever) startFever();
 }
 
 function onBadHit(it) {
@@ -173,7 +276,10 @@ function onBadHit(it) {
   g.shake = reduceMotion ? 4 : 18;
   g.flash = 1;
   g.combo = 0;
-  g.comboT = 0;
+  g.feverT = 0;
+  g.nextFever = TUNING.feverAt;
+  g.queue.length = 0;
+  scene.setFever(false);
   p.sqV = -9;
   sfx.bad();
   haptic([40, 30, 60]);
@@ -182,6 +288,7 @@ function onBadHit(it) {
   addFx({ type: 'ring', x: it.x, y: it.y, size: 70, life: 0.45, max: 0.45, color: '#ff5a6e' });
   g.items = g.items.filter((x) => x !== it);
   ev.onCombo?.({ combo: 0 });
+  ev.onFever?.(false);
 }
 
 /* ------------------------------------------------------------------ update */
@@ -226,7 +333,8 @@ function update(raw) {
   if (g.state === 'playing' || g.state === 'ready') {
     ev.onFrame?.({
       state: g.state, combo: g.combo,
-      comboFrac: g.comboT / TUNING.comboWindow,
+      tierFrac: tierFrac(g.combo),
+      feverFrac: g.feverT / TUNING.feverDuration,
       magnetFrac: g.magnetT / TUNING.magnetDuration,
     });
   }
@@ -272,16 +380,18 @@ function updatePlaying(dt) {
   g.speed = Math.min(TUNING.speedCap, g.speed + dt * TUNING.speedGain);
   g.sincePower += dt;
   if (g.magnetT > 0) g.magnetT = Math.max(0, g.magnetT - dt);
-  if (g.comboT > 0) {
-    g.comboT -= dt;
-    if (g.comboT <= 0 && g.combo > 0) { g.combo = 0; ev.onCombo?.({ combo: 0 }); }
+  if (g.feverT > 0) {
+    g.feverT -= dt;
+    if (Math.random() < dt * 14) {
+      addFx({
+        type: 'star', x: rand(0, W), y: -10, vx: rand(-30, 30), vy: rand(60, 140), ay: 120, life: 1.6, max: 1.6,
+        size: rand(7, 13), rot: rand(0, 6), vr: rand(-4, 4), front: false,
+        color: ['#ffd36e', '#ff6b8b', '#8fd8b5', '#8ed1f0', '#ffffff'][Math.floor(Math.random() * 5)],
+      });
+    }
+    if (g.feverT <= 0) endFever();
   }
-
-  g.spawnT -= dt;
-  if (g.spawnT <= 0) {
-    spawnItem();
-    g.spawnT = Math.max(0.38, 0.95 - g.speed * 0.06);
-  }
+  runSpawner(dt);
   updateItems(dt, true);
 }
 
@@ -318,6 +428,7 @@ function updateItems(dt, collide) {
         it.state = 'land';
         it.y = ly;
         it.vy = it.kind === 'bad' ? 0 : -220;
+        if (it.kind !== 'bad' && collide) breakCombo(it);
         if (it.kind === 'bad') burst(it.x, ly, { n: 4, type: 'smoke', colors: ['#a59bb8', '#ffffff'], size: [8, 14], speed: [20, 70], ay: -30, front: false });
       }
     } else {
@@ -400,6 +511,13 @@ function drawItems() {
     ctx.translate(it.x, it.y);
     ctx.rotate(Math.sin(it.age * 3.2 + it.phase) * 0.22 + it.tilt);
     ctx.scale(sx, sy);
+    if (it.gold) {
+      const pulse = 0.5 + 0.5 * Math.sin(g.t * 10 + it.phase);
+      ctx.fillStyle = `rgba(255,211,110,${(0.4 + 0.25 * pulse).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, it.size * (0.62 + 0.08 * pulse), 0, 6.283);
+      ctx.fill();
+    }
     ctx.drawImage(im, -it.size / 2, -it.size / 2, it.size, it.size);
     ctx.restore();
   }
@@ -417,6 +535,18 @@ function drawPlayer() {
   ctx.beginPath();
   ctx.ellipse(p.x, fy - 2, p.w * 0.42 * (1 - lift * 0.3) * (1 + p.sq * 0.25), p.w * 0.1, 0, 0, 6.283);
   ctx.fill();
+
+  if (g.feverT > 0) {
+    const pulse = 0.5 + 0.5 * Math.sin(g.t * 12);
+    const r = p.w * (0.78 + 0.08 * pulse);
+    const glow = ctx.createRadialGradient(p.x, p.baseY, r * 0.3, p.x, p.baseY, r * 1.35);
+    glow.addColorStop(0, 'rgba(255,236,150,0.75)');
+    glow.addColorStop(1, 'rgba(255,211,110,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.baseY, r * 1.35, 0, 6.283);
+    ctx.fill();
+  }
 
   if (g.magnetT > 0) {
     const a = g.magnetT < 1 ? 0.4 + 0.5 * Math.abs(Math.sin(g.t * 14)) : 0.9;
@@ -583,5 +713,7 @@ export const game = {
   quit() { g.state = 'menu'; g.items.length = 0; g.pops.length = 0; g.timeScale = 1; g.magnetT = 0; },
   setTheme: (name, instant) => scene.setTheme(name, instant),
   get state() { return g.state; },
+  /** Live simulation state, exposed read-only for debugging (see `?debug` in main.js). */
+  get debug() { return g; },
   get isRunning() { return g.state === 'ready' || g.state === 'playing' || g.state === 'dying'; },
 };

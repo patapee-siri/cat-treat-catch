@@ -43,9 +43,17 @@ tools/make_stickers.py  turns transparent cat cut-outs into die-cut stickers (ne
 
 ## Controls
 
-Drag (or move the mouse / use ← →) to move the cat. Catch smiling items, dodge scowling ones.
-Catch quickly in a row to build a combo; the 🧲 power-up pulls treats toward the cat for a few seconds.
-`Esc` pauses.
+Drag (or move the mouse / use ← →) to move the cat. Catch smiling items, dodge scowling ones. `Esc` pauses.
+
+**Combo system**
+- Every catch extends your streak; the streak only breaks when a treat hits the ground (touching a hazard ends the run).
+- Score multiplier steps up at streaks of 5 / 10 / 20 (x2 / x3 / x4).
+- Reaching a streak of 10 triggers **FEVER** for ~6 s: double points, hazards turn into golden cookies, treats rain faster.
+  A streak can't break during FEVER, and it can retrigger every 15 more catches.
+- Treats sometimes fall as trails (diagonal, zigzag, wave, column) you can sweep through in one motion.
+- The 🧲 power-up pulls treats toward the cat for a few seconds.
+
+Open the site with `?debug` to expose `window.__game` for inspecting live state.
 
 ## Credits
 

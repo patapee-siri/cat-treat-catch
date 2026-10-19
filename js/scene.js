@@ -21,8 +21,14 @@ export const scene = {
   W: 0, H: 0, groundTopY: 0, groundH: 0,
   night: 0, nightTarget: 0,
   parallax: 0, parallaxTarget: 0,
+  fever: 0, feverTarget: 0,
   time: 0,
   clouds: [], stars: [], petals: [], flies: [], flowers: [], tufts: [], hillFar: [], hillNear: [],
+
+  setFever(on) {
+    this.feverTarget = on ? 1 : 0;
+    if (!on && this.fever < 0.01) this.fever = 0;
+  },
 
   setTheme(name, instant = false) {
     this.nightTarget = name === 'night' ? 1 : 0;
@@ -85,6 +91,7 @@ export const scene = {
     const d = this.nightTarget - this.night;
     this.night = Math.abs(d) < 0.001 ? this.nightTarget : this.night + Math.sign(d) * Math.min(Math.abs(d), dt / 0.9);
     this.parallax += (this.parallaxTarget - this.parallax) * Math.min(1, dt * 3);
+    this.fever += (this.feverTarget - this.fever) * Math.min(1, dt * 4);
 
     for (const c of this.clouds) {
       c.x += c.speed * dt;
@@ -113,6 +120,20 @@ export const scene = {
     sky.addColorStop(1, mix('skyBottom', n));
     ctx.fillStyle = sky;
     ctx.fillRect(-24, -24, W + 48, H + 48);
+
+    // FEVER: a colour-cycling party wash with a beat pulse
+    if (this.fever > 0.01) {
+      const f = this.fever;
+      const hue = (t * 70) % 360;
+      const wash = ctx.createLinearGradient(0, 0, W, groundTopY);
+      wash.addColorStop(0, `hsla(${hue},95%,68%,${(0.42 * f).toFixed(3)})`);
+      wash.addColorStop(1, `hsla(${(hue + 90) % 360},95%,70%,${(0.42 * f).toFixed(3)})`);
+      ctx.fillStyle = wash;
+      ctx.fillRect(-24, -24, W + 48, H + 48);
+      const beat = Math.max(0, Math.sin(t * 10));
+      ctx.fillStyle = `rgba(255,255,255,${(0.1 * f * beat).toFixed(3)})`;
+      ctx.fillRect(-24, -24, W + 48, H + 48);
+    }
 
     const sx = W * 0.8;
     const baseY = H * 0.13 + Math.sin(t * 0.8) * 5;
