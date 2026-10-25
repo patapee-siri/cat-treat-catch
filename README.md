@@ -59,3 +59,9 @@ Open the site with `?debug` to expose `window.__game` for inspecting live state.
 
 Fonts: [Lilita One](https://fonts.google.com/specimen/Lilita+One) and [Mali](https://fonts.google.com/specimen/Mali),
 licensed under the SIL Open Font License 1.1.
+
+## Project
+
+[Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Security](SECURITY.md) · [Accessibility](ACCESSIBILITY.md)
+
+Code, SVG art and docs are under the [MIT licence](LICENSE). The cat photographs in `img/cats/` are personal photos and are not covered.
