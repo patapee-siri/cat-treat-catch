@@ -5,6 +5,19 @@ dodge the cucumbers and bombs. Plain HTML/CSS/JavaScript — no build step, no d
 
 **Play:** https://patapee-siri.github.io/cat-treat-catch/
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/1-cover.png" width="180" alt="Cover">
+  <img src="docs/screenshots/2-select.png" width="180" alt="Choose your cat">
+  <img src="docs/screenshots/3-combo.png" width="180" alt="Combo streak">
+</p>
+<p align="center">
+  <img src="docs/screenshots/4-fever.png" width="180" alt="FEVER mode">
+  <img src="docs/screenshots/5-over.png" width="180" alt="Result screen">
+  <img src="docs/screenshots/6-night.png" width="180" alt="Night theme">
+</p>
+
 ## Run locally
 
 The game uses ES modules, so it must be served over HTTP (opening `index.html` from disk won't work):
